@@ -46,7 +46,7 @@ class Retriever:
     def __init__(self, host: str, port: int, source_corpus_name: str) -> None:
         self._host = host
         self._port = port
-        assert source_corpus_name in ("hotpotqa", "2wikimultihopqa", "musique", "iirc")
+        assert source_corpus_name in ("hotpotqa", "2wikimultihopqa", "musique", "iirc", "multihop")
         self._source_corpus_name = source_corpus_name
 
     def retrieve(self, allowed_title: str, query_text: str) -> List[Dict]:
@@ -123,6 +123,7 @@ def attach_data_annotations(
         reasoning_steps = instance["reasoning_steps"]
 
         answer_regex = r".*answer is: (.*)\."
+        print(reasoning_steps[-1]["cot_sent"])
         assert re.match(answer_regex, reasoning_steps[-1]["cot_sent"])
         extracted_answer = re.sub(answer_regex, r"\1", reasoning_steps[-1]["cot_sent"])
 
@@ -173,6 +174,7 @@ def attach_data_annotations(
             # Otherwise try to do a match based on retrieved paragraphs.
             if not matching_paragraphs:
                 retrieved_paragraphs = retriever.retrieve(gold_paragraph["title"], gold_paragraph["text_substring"])
+                # print(retrieved_paragraphs)
                 matching_paragraphs = _find_matching_paragraphs(
                     gold_paragraph["title"], gold_paragraph["text_substring"], retrieved_paragraphs
                 )
@@ -181,6 +183,10 @@ def attach_data_annotations(
                 print("WARNING: Couldn't find any match for the annotated paragraph.")
                 continue
 
+            # if len(matching_paragraphs) > 1:
+            #     # print(gold_paragraph["title"], gold_paragraph["text_substring"])
+            #     # print(retrieved_paragraphs)
+            #     print(matching_paragraphs)
             assert len(matching_paragraphs) == 1
             matching_paragraph = matching_paragraphs[0]
 
@@ -189,6 +195,9 @@ def attach_data_annotations(
 
             text_populated_reasoning_steps.append(reasoning_step)
 
+        if len(text_populated_reasoning_steps) != len(reasoning_steps):
+            print(len(text_populated_reasoning_steps), text_populated_reasoning_steps[0])
+            print(len(reasoning_steps), reasoning_steps[0])
         assert len(text_populated_reasoning_steps) == len(reasoning_steps)
         instance["reasoning_steps"] = text_populated_reasoning_steps
         annotated_processed_data.append(instance)
@@ -200,7 +209,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="Attach annotations to the processed data.")
     parser.add_argument(
-        "dataset_name", type=str, help="dataset_name", choices={"hotpotqa", "2wikimultihopqa", "musique", "iirc"}
+        "dataset_name", type=str, help="dataset_name", choices={"hotpotqa", "2wikimultihopqa", "musique", "iirc", "multihop"}
     )
     args = parser.parse_args()
 

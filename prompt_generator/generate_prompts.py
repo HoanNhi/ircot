@@ -2,7 +2,7 @@ import os
 import argparse
 from typing import List, Dict
 
-from prompt_generator.common import QAPromptGenerator, NoContextOpenRetrieverPromptGenerator
+from common import QAPromptGenerator, NoContextOpenRetrieverPromptGenerator
 
 
 def get_qa_prompt_generator_args_and_names(dataset_name: str) -> List[Dict]:
@@ -65,7 +65,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="Generate prompts.")
     parser.add_argument(
-        "dataset_name", type=str, help="dataset_name", choices={"hotpotqa", "2wikimultihopqa", "musique", "iirc"}
+        "dataset_name", type=str, help="dataset_name", choices={"hotpotqa", "2wikimultihopqa", "musique", "iirc", "multihop"}
     )
     args = parser.parse_args()
 

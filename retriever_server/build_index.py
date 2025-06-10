@@ -28,6 +28,46 @@ def hash_object(o: Any) -> str:
         m.update(buffer.getbuffer())
         return base58.b58encode(m.digest()).decode()
 
+def make_multihop_document(elasticsearch_index: str, metadata: Dict = None):
+    used_full_ids = set()
+    metadata = metadata or {"idx": 1}
+    raw_filepath = os.path.join("raw_data", "passages.json")
+    with open(raw_filepath, "r") as file:
+        instances = json.loads(file.read())
+
+        for instance in instances:
+
+            title = instance["title"]
+            text = instance["text"]
+
+            # Split the text into paragraphs by double newlines
+            paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+
+            for paragraph_index, paragraph_text in enumerate(paragraphs):
+
+                full_id = hash_object(" ".join([title, paragraph_text]))
+                if full_id in used_full_ids:
+                    continue
+
+                used_full_ids.add(full_id)
+                id_ = full_id[:32]
+
+                es_paragraph = {
+                    "id": id_,
+                    "title": title,
+                    "paragraph_index": paragraph_index,
+                    "paragraph_text": paragraph_text,
+                }
+                document = {
+                    "_op_type": "create",
+                    "_index": elasticsearch_index,
+                    "_id": metadata["idx"],
+                    "_source": es_paragraph,
+                }
+                # print(document)
+                yield (document)
+                metadata["idx"] += 1
+
 
 def make_hotpotqa_documents(elasticsearch_index: str, metadata: Dict = None):
     raw_glob_filepath = os.path.join("raw_data", "hotpotqa", "wikpedia-paragraphs", "*", "wiki_*.bz2")
@@ -220,7 +260,7 @@ if __name__ == "__main__":
         "dataset_name",
         help="name of the dataset",
         type=str,
-        choices=("hotpotqa", "iirc", "2wikimultihopqa", "musique"),
+        choices=("hotpotqa", "iirc", "2wikimultihopqa", "musique", "multihop"),
     )
     parser.add_argument(
         "--force",
@@ -286,6 +326,8 @@ if __name__ == "__main__":
         make_documents = make_2wikimultihopqa_documents
     elif args.dataset_name == "musique":
         make_documents = make_musique_documents
+    elif args.dataset_name == "multihop":
+        make_documents = make_multihop_document
     else:
         raise Exception(f"Unknown dataset_name {args.dataset_name}")
 

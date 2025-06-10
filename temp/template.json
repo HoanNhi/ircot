@@ -1,0 +1,19 @@
+{
+    "dataset":"multihop",
+    "question_id":"",
+    "question_text":"",
+    "level":"hard",
+    "type":"bridge",
+    "answers_objects":[
+        {
+            "number":"",
+            "date":{
+                "day":"",
+                "month":"",
+                "year":""
+            },
+            "spans":[]
+        }
+    ],
+    "contexts":[]
+}

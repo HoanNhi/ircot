@@ -69,6 +69,7 @@ def main():
             f"--config {config_filepath}",
             f"--input {args.evaluation_path}",
             f"--output {prediction_filepath}",
+            "--threads 10",
         ]
     ).strip()
 

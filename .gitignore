@@ -11,3 +11,6 @@ official_evaluation/
 .llm_server_address.jsonnet
 .history
 .temp
+.idea/
+elasticsearch-7.10.2-linux-x86_64.tar.gz
+elasticsearch-7.10.2/
