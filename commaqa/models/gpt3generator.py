@@ -3,21 +3,21 @@ import time
 import os
 from functools import lru_cache
 
-import openai
+from openai import OpenAI
 from diskcache import Cache
 from commaqa.inference.prompt_reader import fit_prompt_into_given_limit
 
-
 logger = logging.getLogger(__name__)
 
+key = os.environ["OPENAI_API_KEY"]
+client = OpenAI(api_key=key)
 
 cache = Cache(os.path.expanduser("~/.cache/gpt3calls"))
 
-
 @cache.memoize()
-def cached_openai_call(  # kwargs doesn't work with caching.
+def cached_openai_call(
     prompt,
-    engine,
+    model,
     temperature,
     max_tokens,
     top_p,
@@ -28,9 +28,9 @@ def cached_openai_call(  # kwargs doesn't work with caching.
     best_of,
     logprobs,
 ):
-    return openai.Completion.create(
+    return client.completions.create(
+        model=model,
         prompt=prompt,
-        engine=engine,
         temperature=temperature,
         max_tokens=max_tokens,
         top_p=top_p,
@@ -56,10 +56,10 @@ def openai_call(
     best_of,
     logprobs,
 ):
-    function = cached_openai_call if temperature == 0 else openai.Completion.create
+    function = cached_openai_call if temperature == 0 else client.completions.create
     return function(
+        model=engine,
         prompt=prompt,
-        engine=engine,
         temperature=temperature,
         max_tokens=max_tokens,
         top_p=top_p,
@@ -75,14 +75,13 @@ def openai_call(
 @lru_cache(maxsize=1)
 def get_gpt_tokenizer():
     from transformers import GPT2Tokenizer
-
     return GPT2Tokenizer.from_pretrained("gpt2")
 
 
 class GPT3Generator:
     def __init__(
         self,
-        engine="text-davinci-002",
+        engine="gpt-4.1-mini",
         temperature=0,
         max_tokens=300,
         top_p=1,
@@ -108,26 +107,18 @@ class GPT3Generator:
         self.retry_after_n_seconds = retry_after_n_seconds
         self.remove_method = remove_method
 
-        if "code-davinci" not in engine:
-            raise Exception("Not allowed to prevent accidental $$ wastage.")
+        # if "code-davinci" not in engine:
+        #     raise Exception("Not allowed to prevent accidental $$ wastage.")
+        #
+        # if "code-davinci" not in engine and self.retry_after_n_seconds is not None:
+        #     raise Exception(
+        #         "Retry is only supported for code-davinci as it's free. "
+        #         "Using it for other paid models is risky and so is disabled."
+        #     )
 
-        if "code-davinci" not in engine and self.retry_after_n_seconds is not None:
-            raise Exception(
-                "Retry is only supported for code-davinci as it's free. "
-                "Using it for other paid models is risky and so is disabled."
-            )
-
-        if "code-davinci" in engine:
-            self.model_tokens_limit = 8000
-        else:
-            self.model_tokens_limit = 2000
+        self.model_tokens_limit = 8000 if "code-davinci" in engine else 2000
 
     def generate_text_sequence(self, prompt):
-        """
-        :param input_text:
-        :return: returns a sequence of tuples (string, score) where lower score is better
-        """
-        # GPT3 can't handle trailing white-space
         prompt = prompt.rstrip()
 
         prompt = fit_prompt_into_given_limit(
@@ -137,7 +128,7 @@ class GPT3Generator:
             demonstration_delimiter="\n\n\n",
             shuffle=False,
             remove_method=self.remove_method,
-            tokenizer_model_name="gpt2",  # did this before tiktoken was released.
+            tokenizer_model_name="gpt2",
             last_is_test_example=True,
         )
 
@@ -154,8 +145,6 @@ class GPT3Generator:
             "presence_penalty": self.presence_penalty,
             "stop": self.stop,
         }
-        if self.best_of is not None:
-            arguments["best_of"] = self.best_of
 
         success = False
         for index in range(500):
@@ -164,7 +153,6 @@ class GPT3Generator:
                 success = True
                 break
             except Exception as exception:
-
                 success = False
 
                 tokenizer = get_gpt_tokenizer()
@@ -183,11 +171,11 @@ class GPT3Generator:
 
                 if self.retry_after_n_seconds is None:
                     import traceback
-
                     print(traceback.format_exc())
                     exit()
 
                 print(f"Encountered exception of class: {exception.__class__}")
+                print(f"TypeError: {exception}")
                 if hasattr(exception, "user_message"):
                     print(exception.user_message)
                 print(f"Potentially reached OpenAI rate limit. Will try again in {self.retry_after_n_seconds}s.")
@@ -199,19 +187,16 @@ class GPT3Generator:
 
         output_seq_score = []
 
-        for index, choice in enumerate(response["choices"]):
-            if "logprobs" in choice and "token_logprobs" in choice["logprobs"]:
+        for index, choice in enumerate(response.choices):
+            if choice.logprobs and choice.logprobs.token_logprobs:
                 probs = []
-                for prob, tok in zip(choice["logprobs"]["token_logprobs"], choice["logprobs"]["tokens"]):
-                    if tok not in self.stop and tok != "<|endoftext|>":
-                        probs.append(prob)
-                    else:
-                        probs.append(prob)
+                for prob, tok in zip(choice.logprobs.token_logprobs, choice.logprobs.tokens):
+                    probs.append(prob)
+                    if tok in self.stop or tok == "<|endoftext|>":
                         break
-
-                score = -sum(probs) / len(probs) if len(probs) else 100.0
-                output_seq_score.append((choice["text"], score))
+                score = -sum(probs) / len(probs) if probs else 100.0
+                output_seq_score.append((choice.text, score))
             else:
-                output_seq_score.append((choice["text"], index))
+                output_seq_score.append((choice.text, index))
 
         return sorted(output_seq_score, key=lambda x: x[1])

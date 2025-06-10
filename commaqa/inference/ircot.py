@@ -751,7 +751,7 @@ class StepByStepCOTGenParticipant(ParticipantModel):
             self.prompt = ""
 
         self.max_para_num_words = max_para_num_words
-        if gen_model == "gpt3":
+        if gen_model == "gpt3" or gen_model == "gpt4":
             self.generator = GPT3Generator(**kwargs)
         elif gen_model == "llm_api":
             self.generator = LLMClientGenerator(**kwargs)

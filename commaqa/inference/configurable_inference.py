@@ -146,6 +146,14 @@ def demo_mode(args, reader, decomposer):
             chain += " S: " + str(final_state._score)
             print(chain)
 
+def run_return_qid_prediction_decomposer(decomposer_param):
+    decomposer_local = decomposer_param  # create a new instance or properly handle shared state
+    return decomposer_local.return_qid_prediction
+
+def run_return_qid_prediction_reader(reader_param, args_input_param):
+    reader_local = reader_param  # create a new instance or properly handle shared state
+    return reader_local.read_examples(args_input_param)
+
 
 def inference_mode(args, reader, decomposer, model_map, override_answer_by=None):
     print("Running inference on examples")
@@ -158,9 +166,9 @@ def inference_mode(args, reader, decomposer, model_map, override_answer_by=None)
     if args.threads > 1:
         import multiprocessing as mp
 
-        mp.set_start_method("spawn")
+        mp.set_start_method("spawn", force=True)
         with mp.Pool(args.threads) as p:
-            qid_answer_chains = p.map(decomposer.return_qid_prediction, reader.read_examples(args.input))
+            qid_answer_chains = p.map(run_return_qid_prediction_decomposer(decomposer), run_return_qid_prediction_reader(reader, args.input))
     else:
         iterator = reader.read_examples(args.input)
         if args.silent:
@@ -221,7 +229,6 @@ if __name__ == "__main__":
         # For some reason the following is needed inspite of the setting ENV variable above.
         import openai  # import only if needed
 
-        openai.api_key = os.environ[parsed_args.openai_api_keyname]
 
         print(f"OpenAI API key name used: {parsed_args.openai_api_keyname}")
 
