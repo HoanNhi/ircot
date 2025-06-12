@@ -331,7 +331,7 @@ class RetrieveAndResetParagraphsParticipant(ParticipantModel):
                 raise Exception(f"source_corpus_name is needed for the retrieval_type {retrieval_type}.")
 
         self.retrieval_failures_so_far = 0
-        self.retrieval_failures_max = 9
+        self.retrieval_failures_max = 100
 
     def return_model_calls(self):
         return {"paragraph_retrieve_and_reset": self.num_calls}
